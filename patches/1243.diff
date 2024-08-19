@@ -1,0 +1,103 @@
+diff --git a/roles/wazuh/ansible-wazuh-agent/tasks/Linux.yml b/roles/wazuh/ansible-wazuh-agent/tasks/Linux.yml
+index 64ac34001..0f93e9abe 100644
+--- a/roles/wazuh/ansible-wazuh-agent/tasks/Linux.yml
++++ b/roles/wazuh/ansible-wazuh-agent/tasks/Linux.yml
+@@ -5,10 +5,23 @@
+ - include_tasks: "Debian.yml"
+   when: ansible_os_family == "Debian"
+ 
++- name: Linux | Get installed wazuh-agent version
++  ansible.builtin.package_facts:
++    manager: auto
++
+ - include_tasks: "installation_from_custom_packages.yml"
+   when:
+     - wazuh_custom_packages_installation_agent_enabled
+ 
++- name: Linux CentOS/RedHat | Version unlock wazuh-agent
++  community.general.yum_versionlock:
++    name: "wazuh-agent"
++    state: absent
++  when:
++    - ansible_os_family|lower == "redhat"
++    - "'wazuh-agent' in ansible_facts.packages"
++    - not ansible_facts.packages['wazuh-agent'][0]['version'].startswith(wazuh_agent_version)
++
+ - name: Linux CentOS/RedHat | Install wazuh-agent
+   yum:
+     name: wazuh-agent-{{ wazuh_agent_version }}
+@@ -20,6 +33,22 @@
+   tags:
+     - init
+ 
++- name: Linux CentOS/RedHat | Version lock wazuh-agent
++  community.general.yum_versionlock:
++    name: "wazuh-agent"
++    state: present
++  when:
++    - ansible_os_family|lower == "redhat"
++
++- name: Linux Debian | Version unlock wazuh-agent
++  dpkg_selections:
++    name: "wazuh-agent"
++    selection: install
++  when:
++    - ansible_os_family|lower != "redhat"
++    - "'wazuh-agent' in ansible_facts.packages"
++    - not ansible_facts.packages['wazuh-agent'][0]['version'].startswith(wazuh_agent_version)
++
+ - name: Linux Debian | Install wazuh-agent
+   apt:
+     name: "wazuh-agent={{ wazuh_agent_version }}-*"
+@@ -32,6 +61,13 @@
+   tags:
+     - init
+ 
++- name: Linux Debian | Version lock wazuh-agent
++  dpkg_selections:
++    name: "wazuh-agent"
++    selection: hold
++  when:
++    - ansible_os_family|lower != "redhat"
++
+ - name: Linux | Check if client.keys exists
+   stat:
+     path: "{{ wazuh_dir }}/etc/client.keys"
+diff --git a/roles/wazuh/ansible-wazuh-agent/tasks/RMDebian.yml b/roles/wazuh/ansible-wazuh-agent/tasks/RMDebian.yml
+index 9999a7d38..ed97d539c 100644
+--- a/roles/wazuh/ansible-wazuh-agent/tasks/RMDebian.yml
++++ b/roles/wazuh/ansible-wazuh-agent/tasks/RMDebian.yml
+@@ -1,6 +1 @@
+ ---
+-- name: Remove Wazuh repository (and clean up left-over metadata)
+-  apt_repository:
+-    repo: "{{ wazuh_agent_config.repo.apt }}"
+-    state: absent
+-  changed_when: false
+diff --git a/roles/wazuh/ansible-wazuh-agent/tasks/RMRedHat.yml b/roles/wazuh/ansible-wazuh-agent/tasks/RMRedHat.yml
+index 32bc6fce4..ed97d539c 100644
+--- a/roles/wazuh/ansible-wazuh-agent/tasks/RMRedHat.yml
++++ b/roles/wazuh/ansible-wazuh-agent/tasks/RMRedHat.yml
+@@ -1,6 +1 @@
+ ---
+-- name: Remove Wazuh repository (and clean up left-over metadata)
+-  yum_repository:
+-    name: wazuh_repo
+-    state: absent
+-  changed_when: false
+diff --git a/roles/wazuh/ansible-wazuh-agent/tasks/RedHat.yml b/roles/wazuh/ansible-wazuh-agent/tasks/RedHat.yml
+index 5c053542b..9d86b462e 100644
+--- a/roles/wazuh/ansible-wazuh-agent/tasks/RedHat.yml
++++ b/roles/wazuh/ansible-wazuh-agent/tasks/RedHat.yml
+@@ -33,6 +33,11 @@
+   tags:
+     - init
+ 
++- name: RedHat/CentOS/Fedora | Install yum-plugin-versionlock
++  yum: name=yum-plugin-versionlock state=present
++  tags:
++    - init
++
+ - name: Set Distribution CIS filename for RHEL5
+   set_fact:
+     cis_distribution_filename: cis_rhel5_linux_rcl.txt

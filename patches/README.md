@@ -1,0 +1,2 @@
+- Feature package locking https://github.com/wazuh/wazuh-ansible/pull/1243
+- 
